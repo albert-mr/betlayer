@@ -20,7 +20,6 @@ class Bet:
 
 
 class Debate_BetLayer(gl.Contract):
-    # Valid betting positions
     VALID_POSITIONS = {"for", "against", "neutral"}
 
     owner: Address
@@ -50,13 +49,11 @@ class Debate_BetLayer(gl.Contract):
         amount: str,
         argument: str = "",
     ) -> str:
-        # Validate position early
         if position not in self.VALID_POSITIONS:
             raise Exception(
                 f"Invalid position '{position}'. Must be one of: {', '.join(sorted(self.VALID_POSITIONS))}"
             )
 
-        # Validate amount
         try:
             amount_int = int(amount)
             if amount_int <= 0:
@@ -75,7 +72,6 @@ class Debate_BetLayer(gl.Contract):
         )
         self.bets.append(bet)
 
-        # Update pools using dictionary mapping for cleaner code
         pool_mapping = {
             "for": lambda: setattr(self, "for_pool", self.for_pool + amount_int),
             "against": lambda: setattr(
@@ -90,6 +86,46 @@ class Debate_BetLayer(gl.Contract):
         pool_mapping[position]()
 
         return bet.id
+
+    @gl.public.write
+    def resolve_debate(self) -> None:
+        prompt = f"""
+You are a debate resolutor bot. You are given an assertion and arguments. 
+Arguments are either for, against or neutral to the assertion.
+You need to understand the debate and determine the winning position.
+
+The assertion is: {self.assertion}
+The arguments in favor of the assertion are: none
+The arguments against the assertion are: all arguments against the assertion
+The arguments neutral to the assertion are: none
+
+Respond using ONLY the following format:
+{{
+"reasoning": str,
+"winning_position": str
+}}
+
+VALID_POSITIONS = {{"for", "against", "neutral"}}
+It is mandatory that you respond only using the JSON format above,
+nothing else. Don't include any other words or characters,
+your output must be only JSON without any formatting prefix or suffix.
+This result should be perfectly parseable by a JSON parser without errors.
+"""
+
+        def get_debate_resolution():
+            result = gl.nondet.exec_prompt(prompt)
+            result = result.replace("```json", "").replace("```", "")
+            print(result)
+            return result
+
+        result = gl.eq_principle.prompt_comparative(
+            get_debate_resolution, "The value of winning_position has to match"
+        )
+        parsed_result = json.loads(result)
+        assert isinstance(parsed_result["winning_position"], str)
+        assert parsed_result["winning_position"] in self.VALID_POSITIONS
+        self.resolution = parsed_result["winning_position"]
+        self.is_resolved = True
 
     @gl.public.view
     def get_bets(self) -> List[Bet]:
