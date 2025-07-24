@@ -89,15 +89,56 @@ class Debate_BetLayer(gl.Contract):
 
     @gl.public.write
     def resolve_debate(self) -> None:
+        # Gather arguments by position
+        for_arguments = []
+        against_arguments = []
+        neutral_arguments = []
+
+        for bet in self.bets:
+            if bet.argument.strip():  # Only include non-empty arguments
+                if bet.position == "for":
+                    for_arguments.append(bet.argument)
+                elif bet.position == "against":
+                    against_arguments.append(bet.argument)
+                elif bet.position == "neutral":
+                    neutral_arguments.append(bet.argument)
+
+        # Format arguments for prompt
+        for_args_text = (
+            "\n".join(for_arguments) if for_arguments else "No arguments provided"
+        )
+        against_args_text = (
+            "\n".join(against_arguments)
+            if against_arguments
+            else "No arguments provided"
+        )
+        neutral_args_text = (
+            "\n".join(neutral_arguments)
+            if neutral_arguments
+            else "No arguments provided"
+        )
+
         prompt = f"""
 You are a debate resolutor bot. You are given an assertion and arguments. 
 Arguments are either for, against or neutral to the assertion.
-You need to understand the debate and determine the winning position.
+You need to analyze all arguments objectively and determine the winning position based on the strength of the arguments.
 
 The assertion is: {self.assertion}
-The arguments in favor of the assertion are: none
-The arguments against the assertion are: all arguments against the assertion
-The arguments neutral to the assertion are: none
+
+The arguments in favor of the assertion are:
+{for_args_text}
+
+The arguments against the assertion are:
+{against_args_text}
+
+The arguments neutral to the assertion are:
+{neutral_args_text}
+
+Analyze each argument carefully and determine which position has the strongest case. Consider:
+1. Quality and validity of arguments
+2. Evidence provided
+3. Logical reasoning
+4. Factual accuracy
 
 Respond using ONLY the following format:
 {{
